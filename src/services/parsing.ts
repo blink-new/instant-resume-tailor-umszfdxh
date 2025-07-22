@@ -125,6 +125,8 @@ export class ParsingService {
    */
   async parseLinkedInProfile(url: string): Promise<LinkedInProfile> {
     try {
+      console.log('Starting LinkedIn profile parsing for:', url)
+      
       // First, scrape the LinkedIn profile page
       const { markdown, metadata } = await blink.data.scrape(url)
       
@@ -133,41 +135,36 @@ export class ParsingService {
       }
       
       // Debug: Log the scraped content to understand what we're working with
-      console.log('LinkedIn scraped content preview:', markdown.substring(0, 500) + '...')
+      console.log('LinkedIn scraped content length:', markdown.length)
+      console.log('LinkedIn scraped content preview:', markdown.substring(0, 1000) + '...')
       
-      // Use AI to extract structured data from the scraped content
+      // Use AI to extract structured data from the scraped content with STRICT accuracy requirements
       const { object: profile } = await blink.ai.generateObject({
         prompt: `
-          You are a precise data extraction specialist. Extract ONLY the factual information that is explicitly written in this LinkedIn profile content.
+          You are a PRECISE data extraction specialist. Your job is to extract ONLY the factual information that is explicitly written in this LinkedIn profile content.
           
-          CRITICAL EXTRACTION RULES:
-          1. Copy job titles EXACTLY as written - do not paraphrase or interpret
-          2. Copy company names EXACTLY as written
-          3. Copy dates/durations EXACTLY as written
-          4. Copy descriptions EXACTLY as written - do not summarize or rewrite
-          5. If a section is missing or unclear, use empty arrays or minimal placeholder text
-          6. Do NOT invent or assume any information not explicitly stated
-          7. Preserve all factual details with 100% accuracy
+          CRITICAL EXTRACTION RULES - FOLLOW EXACTLY:
+          1. Extract ONLY information that is explicitly stated in the content
+          2. Copy job titles EXACTLY as written - do not paraphrase, interpret, or modify
+          3. Copy company names EXACTLY as written - do not change or assume
+          4. Copy dates/durations EXACTLY as written - preserve original format
+          5. Copy descriptions EXACTLY as written - do not summarize, rewrite, or enhance
+          6. If information is missing or unclear, leave fields empty or use "Not specified"
+          7. Do NOT invent, assume, or hallucinate any information
+          8. Do NOT add skills that aren't explicitly listed in a skills section
+          9. Do NOT create experience entries that don't exist in the profile
+          10. Preserve all factual details with 100% accuracy
+          
+          VALIDATION REQUIREMENTS:
+          - Every job title must be found in the original content
+          - Every company name must be found in the original content
+          - Every skill must be explicitly mentioned in the profile
+          - If you cannot find clear work experience, return empty arrays
           
           LinkedIn Profile Content:
           ${markdown}
           
-          Extract these sections with complete accuracy:
-          - Name (exactly as shown)
-          - Current headline/title (exactly as shown)
-          - Location (exactly as shown)
-          - About/Summary section (copy the full text if present)
-          - Work Experience: For each job, extract:
-            * Job title (EXACT wording)
-            * Company name (EXACT wording)
-            * Employment dates (EXACT format shown)
-            * Job description (EXACT text, preserve bullet points and details)
-            * Location if mentioned
-          - Education: Extract exactly as shown
-          - Skills: Only list skills explicitly mentioned in a skills section
-          - Other sections only if clearly present
-          
-          ACCURACY IS CRITICAL: This person's career depends on factual representation.
+          Extract these sections with complete accuracy. If a section is not clearly present, use empty arrays:
         `,
         schema: {
           type: 'object',
@@ -275,46 +272,65 @@ export class ParsingService {
         }
       })
 
-      // Ensure required arrays are not empty
       const processedProfile = profile as LinkedInProfile
       
-      // Debug logging
+      // Validate extracted data - ensure we have real information
+      if (!processedProfile.name || processedProfile.name.trim() === '' || processedProfile.name === 'Not specified') {
+        throw new Error('Unable to extract name from LinkedIn profile. Please ensure the profile is accessible and contains valid information.')
+      }
+      
+      // Debug logging with validation
       console.log('Parsed LinkedIn Profile:', {
         name: processedProfile.name,
         headline: processedProfile.headline,
         experienceCount: processedProfile.experience?.length || 0,
         firstJobTitle: processedProfile.experience?.[0]?.title,
-        skillsCount: processedProfile.skills?.length || 0
+        firstCompany: processedProfile.experience?.[0]?.company,
+        skillsCount: processedProfile.skills?.length || 0,
+        firstSkills: processedProfile.skills?.slice(0, 3)
       })
       
+      // Validate that we have meaningful experience data
       if (!processedProfile.experience || processedProfile.experience.length === 0) {
-        processedProfile.experience = [{
-          title: 'Professional Experience',
-          company: 'Various Companies',
-          duration: 'Multiple Years',
-          location: processedProfile.location || 'Various Locations',
-          description: 'Professional experience in relevant field',
-          skills: processedProfile.skills?.slice(0, 5) || ['Professional Skills']
-        }]
+        throw new Error('No work experience found in LinkedIn profile. Please ensure your profile contains work experience information and is publicly accessible.')
       }
-      if (!processedProfile.education || processedProfile.education.length === 0) {
-        processedProfile.education = [{
-          school: 'Educational Institution',
-          degree: 'Degree',
-          field: 'Relevant Field',
-          duration: 'Completed',
-          gpa: '',
-          honors: []
-        }]
+      
+      // Validate that experience entries have real data
+      const hasValidExperience = processedProfile.experience.some(exp => 
+        exp.title && exp.title !== 'Not specified' && 
+        exp.company && exp.company !== 'Not specified' &&
+        exp.title.length > 2 && exp.company.length > 2
+      )
+      
+      if (!hasValidExperience) {
+        throw new Error('Unable to extract valid work experience from LinkedIn profile. Please ensure your profile contains detailed work experience information.')
       }
-      if (!processedProfile.skills || processedProfile.skills.length === 0) {
-        processedProfile.skills = ['Professional Skills', 'Communication', 'Problem Solving']
+      
+      // Clean up any empty or invalid entries
+      processedProfile.experience = processedProfile.experience.filter(exp => 
+        exp.title && exp.company && exp.title !== 'Not specified' && exp.company !== 'Not specified'
+      )
+      
+      processedProfile.education = processedProfile.education.filter(edu => 
+        edu.school && edu.degree && edu.school !== 'Not specified' && edu.degree !== 'Not specified'
+      )
+      
+      processedProfile.skills = processedProfile.skills.filter(skill => 
+        skill && skill !== 'Not specified' && skill.length > 1
+      )
+      
+      // Final validation
+      if (processedProfile.experience.length === 0) {
+        throw new Error('No valid work experience could be extracted from the LinkedIn profile.')
       }
 
       return processedProfile
     } catch (error) {
       console.error('Error parsing LinkedIn profile:', error)
-      throw new Error('Failed to parse LinkedIn profile. Please ensure the URL is accessible and try again.')
+      if (error instanceof Error) {
+        throw error // Re-throw the specific error
+      }
+      throw new Error('Failed to parse LinkedIn profile. Please ensure the URL is accessible and contains valid profile information.')
     }
   }
 
@@ -323,6 +339,8 @@ export class ParsingService {
    */
   async parseJobPosting(url: string): Promise<JobPosting> {
     try {
+      console.log('Starting job posting parsing for:', url)
+      
       // Scrape the job posting page
       const { markdown, metadata } = await blink.data.scrape(url)
       
@@ -330,29 +348,25 @@ export class ParsingService {
         throw new Error('Unable to extract sufficient content from job posting. Please ensure the URL is accessible.')
       }
       
+      console.log('Job posting scraped content length:', markdown.length)
+      console.log('Job posting content preview:', markdown.substring(0, 500) + '...')
+      
       // Use AI to extract structured job information
       const { object: jobData } = await blink.ai.generateObject({
         prompt: `
           Analyze this job posting and extract comprehensive job requirements and details.
           Focus on identifying specific skills, qualifications, and requirements.
           
+          EXTRACTION RULES:
+          1. Extract only information that is explicitly stated in the job posting
+          2. Do not invent or assume any requirements
+          3. Categorize requirements as "required" vs "preferred" based on language used
+          4. Extract all relevant keywords for ATS optimization
+          
           Job Posting Content:
           ${markdown}
           
-          Extract all available information including:
-          - Job title, company, location, employment type
-          - Detailed job description and responsibilities
-          - Required vs preferred qualifications
-          - Technical skills and soft skills needed
-          - Education requirements
-          - Experience level and years required
-          - Certifications or licenses needed
-          - Salary information if available
-          - Company benefits and perks
-          - Industry-specific keywords and terminology
-          
-          Categorize requirements as "required" vs "preferred" based on language used.
-          Extract all relevant keywords that would be important for ATS systems.
+          Extract all available information including job details, requirements, and keywords.
         `,
         schema: {
           type: 'object',
@@ -393,49 +407,74 @@ export class ParsingService {
         }
       })
 
-      // Ensure required arrays are not empty
       const processedJob = jobData as JobPosting
-      if (!processedJob.requirements.required || processedJob.requirements.required.length === 0) {
-        processedJob.requirements.required = ['Relevant experience', 'Strong communication skills']
+      
+      // Validate job data
+      if (!processedJob.title || !processedJob.company) {
+        throw new Error('Unable to extract job title and company from the job posting.')
       }
-      if (!processedJob.requirements.skills || processedJob.requirements.skills.length === 0) {
-        processedJob.requirements.skills = ['Professional skills', 'Problem solving', 'Team collaboration']
+      
+      // Ensure required arrays exist (but don't add fake data)
+      if (!processedJob.requirements.required) {
+        processedJob.requirements.required = []
       }
-      if (!processedJob.responsibilities || processedJob.responsibilities.length === 0) {
-        processedJob.responsibilities = ['Execute key responsibilities', 'Collaborate with team members', 'Deliver quality results']
+      if (!processedJob.requirements.skills) {
+        processedJob.requirements.skills = []
       }
-      if (!processedJob.keywords || processedJob.keywords.length === 0) {
-        processedJob.keywords = [processedJob.title, processedJob.company, 'professional', 'experience']
+      if (!processedJob.responsibilities) {
+        processedJob.responsibilities = []
       }
+      if (!processedJob.keywords) {
+        processedJob.keywords = []
+      }
+
+      console.log('Parsed job posting:', {
+        title: processedJob.title,
+        company: processedJob.company,
+        requirementsCount: processedJob.requirements.required.length,
+        skillsCount: processedJob.requirements.skills.length
+      })
 
       return processedJob
     } catch (error) {
       console.error('Error parsing job posting:', error)
+      if (error instanceof Error) {
+        throw error
+      }
       throw new Error('Failed to parse job posting. Please ensure the URL is accessible and try again.')
     }
   }
 
   /**
-   * Generate tailored resume content and insights
+   * Generate tailored resume content and insights with strict fact preservation
    */
   async generateTailoredResume(
     profile: LinkedInProfile, 
     job: JobPosting
   ): Promise<{ tailoredProfile: LinkedInProfile; insights: TailoringInsights }> {
     try {
-      // Step 1: Generate the tailored profile with strict preservation rules
-      let { object: tailoredProfile } = await blink.ai.generateObject({
+      console.log('Starting resume tailoring process...')
+      console.log('Original profile experience count:', profile.experience.length)
+      console.log('Job title:', job.title)
+      
+      // Create a deep copy of the original profile to ensure we preserve all original data
+      const originalProfile = JSON.parse(JSON.stringify(profile)) as LinkedInProfile
+      
+      // Step 1: Generate the tailored profile with ABSOLUTE fact preservation
+      const { object: tailoredProfile } = await blink.ai.generateObject({
         prompt: `
           You are a professional resume optimizer. Your ONLY job is to enhance descriptions and summaries while preserving ALL factual information.
           
           ABSOLUTE RULES - NEVER VIOLATE THESE:
-          1. Keep ALL job titles EXACTLY as they appear in the original profile
-          2. Keep ALL company names EXACTLY as they appear in the original profile  
-          3. Keep ALL employment dates EXACTLY as they appear in the original profile
-          4. Keep ALL education details EXACTLY as they appear in the original profile
+          1. Keep ALL job titles EXACTLY as they appear: ${profile.experience.map(e => `"${e.title}"`).join(', ')}
+          2. Keep ALL company names EXACTLY as they appear: ${profile.experience.map(e => `"${e.company}"`).join(', ')}
+          3. Keep ALL employment dates EXACTLY as they appear: ${profile.experience.map(e => `"${e.duration}"`).join(', ')}
+          4. Keep ALL education details EXACTLY as they appear
           5. ONLY modify job descriptions to highlight relevant aspects using job posting keywords
           6. ONLY modify the professional summary to emphasize relevant strengths
-          7. ONLY reorder or emphasize existing skills that match the job requirements
+          7. ONLY reorder existing skills that match the job requirements
+          8. Do NOT add new skills that weren't in the original profile
+          9. Do NOT change any factual information - only enhance presentation
           
           ORIGINAL CANDIDATE PROFILE (PRESERVE ALL FACTS):
           Name: ${profile.name}
@@ -443,36 +482,35 @@ export class ParsingService {
           Location: ${profile.location}
           Summary: ${profile.summary}
           
-          Experience:
-          ${profile.experience.map(exp => `
-          - Title: ${exp.title} (KEEP EXACTLY AS IS)
-          - Company: ${exp.company} (KEEP EXACTLY AS IS)
-          - Duration: ${exp.duration} (KEEP EXACTLY AS IS)
-          - Description: ${exp.description}
+          Work Experience (PRESERVE EXACTLY):
+          ${profile.experience.map((exp, i) => `
+          ${i + 1}. Title: "${exp.title}" (MUST KEEP EXACTLY AS IS)
+             Company: "${exp.company}" (MUST KEEP EXACTLY AS IS)
+             Duration: "${exp.duration}" (MUST KEEP EXACTLY AS IS)
+             Original Description: ${exp.description}
           `).join('')}
           
-          Education:
-          ${profile.education.map(edu => `
-          - Degree: ${edu.degree} (KEEP EXACTLY AS IS)
-          - Field: ${edu.field} (KEEP EXACTLY AS IS)
-          - School: ${edu.school} (KEEP EXACTLY AS IS)
-          - Duration: ${edu.duration} (KEEP EXACTLY AS IS)
+          Education (PRESERVE EXACTLY):
+          ${profile.education.map((edu, i) => `
+          ${i + 1}. Degree: "${edu.degree}" at "${edu.school}" (${edu.duration})
           `).join('')}
           
-          Skills: ${profile.skills.join(', ')}
+          Skills (ONLY REORDER, DON'T ADD NEW): ${profile.skills.join(', ')}
           
           TARGET JOB POSTING:
           Title: ${job.title}
           Company: ${job.company}
           Key Requirements: ${job.requirements.required.join(', ')}
           Key Skills: ${job.requirements.skills.join(', ')}
+          Responsibilities: ${job.responsibilities.join(', ')}
           
           YOUR TASK:
           1. Rewrite the professional summary to highlight how their ACTUAL background fits this role
           2. Rewrite job descriptions to emphasize relevant aspects using keywords from the job posting
-          3. Prioritize skills that match the job requirements
+          3. Prioritize skills that match the job requirements (reorder only, don't add new ones)
           4. DO NOT change any titles, companies, dates, or core facts
           5. Focus on making their REAL experience sound more relevant to the target role
+          6. Use job posting keywords naturally in descriptions where they genuinely apply
           
           Return the enhanced profile with ALL original facts preserved.
         `,
@@ -582,40 +620,75 @@ export class ParsingService {
         }
       })
 
-      // Simple validation: Ensure we have the same number of experience entries
-      const originalProfile = profile
       const processedTailoredProfile = tailoredProfile as LinkedInProfile
       
-      // Ensure we maintain the same structure
+      // CRITICAL VALIDATION: Ensure factual accuracy is preserved
+      console.log('Validating tailored profile...')
+      
+      // Validate experience count matches
       if (processedTailoredProfile.experience.length !== originalProfile.experience.length) {
-        console.warn('Experience count mismatch, using original structure with tailored descriptions')
-        processedTailoredProfile.experience = originalProfile.experience.map((exp, index) => ({
-          ...exp, // Keep all original data
-          description: processedTailoredProfile.experience[index]?.description || exp.description // Only update description if available
-        }))
+        console.error('Experience count mismatch! Original:', originalProfile.experience.length, 'Tailored:', processedTailoredProfile.experience.length)
+        throw new Error('Resume tailoring failed: Experience count changed during processing.')
       }
       
-      // Ensure job titles and companies are preserved (they should be from the prompt, but double-check)
-      processedTailoredProfile.experience = processedTailoredProfile.experience.map((exp, index) => ({
-        ...exp,
-        title: originalProfile.experience[index]?.title || exp.title, // Preserve original title
-        company: originalProfile.experience[index]?.company || exp.company, // Preserve original company
-        duration: originalProfile.experience[index]?.duration || exp.duration // Preserve original duration
-      }))
+      // Validate each experience entry for factual accuracy
+      for (let i = 0; i < originalProfile.experience.length; i++) {
+        const original = originalProfile.experience[i]
+        const tailored = processedTailoredProfile.experience[i]
+        
+        if (original.title !== tailored.title) {
+          console.error(`Job title changed! Original: "${original.title}", Tailored: "${tailored.title}"`)
+          tailored.title = original.title // Force correction
+        }
+        
+        if (original.company !== tailored.company) {
+          console.error(`Company changed! Original: "${original.company}", Tailored: "${tailored.company}"`)
+          tailored.company = original.company // Force correction
+        }
+        
+        if (original.duration !== tailored.duration) {
+          console.error(`Duration changed! Original: "${original.duration}", Tailored: "${tailored.duration}"`)
+          tailored.duration = original.duration // Force correction
+        }
+      }
       
-      tailoredProfile = processedTailoredProfile
+      // Validate education hasn't been altered
+      if (processedTailoredProfile.education.length !== originalProfile.education.length) {
+        console.warn('Education count changed, restoring original')
+        processedTailoredProfile.education = originalProfile.education
+      }
+      
+      // Validate skills - ensure no new skills were added
+      const originalSkillsSet = new Set(originalProfile.skills.map(s => s.toLowerCase()))
+      const tailoredSkillsFiltered = processedTailoredProfile.skills.filter(skill => 
+        originalSkillsSet.has(skill.toLowerCase())
+      )
+      
+      if (tailoredSkillsFiltered.length !== processedTailoredProfile.skills.length) {
+        console.warn('New skills were added, filtering to original skills only')
+        processedTailoredProfile.skills = tailoredSkillsFiltered
+      }
+      
+      console.log('Validation complete. Tailored profile preserved factual accuracy.')
 
-      // Step 2: Generate insights separately (simplified)
+      // Step 2: Generate insights
       const { object: insights } = await blink.ai.generateObject({
         prompt: `
           Analyze the changes made to tailor the resume for the job. Compare the original profile with the tailored version.
           
-          Original Profile Summary: ${profile.summary}
-          Tailored Profile Summary: ${tailoredProfile.summary}
+          Original Profile Summary: ${originalProfile.summary}
+          Tailored Profile Summary: ${processedTailoredProfile.summary}
+          
+          Original Experience Descriptions:
+          ${originalProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\n')}
+          
+          Tailored Experience Descriptions:
+          ${processedTailoredProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\n')}
           
           Job Requirements: ${JSON.stringify(job.requirements, null, 2)}
           
           Provide insights on what was changed and why, focusing on the most important modifications.
+          Remember: Only descriptions and summaries were modified, not titles, companies, or dates.
         `,
         schema: {
           type: 'object',
@@ -701,32 +774,39 @@ export class ParsingService {
         }
       })
 
-      // Ensure insights have required data
       const processedInsights = insights as TailoringInsights
+      
+      // Ensure insights have required data
       if (!processedInsights.skillsMatch || processedInsights.skillsMatch.length === 0) {
         processedInsights.skillsMatch = [{
-          skill: 'Professional Skills',
+          skill: 'Core Professional Skills',
           fromProfile: true,
           addedForJob: false,
           relevanceScore: 0.8,
-          explanation: 'Core professional skills relevant to the position'
+          explanation: 'Existing professional skills relevant to the target position'
         }]
       }
+      
       if (!processedInsights.summaryChanges) {
         processedInsights.summaryChanges = {
-          original: profile.summary,
-          tailored: tailoredProfile.summary,
+          original: originalProfile.summary,
+          tailored: processedTailoredProfile.summary,
           keywordsIntegrated: [],
-          explanation: 'Summary optimized for job requirements'
+          explanation: 'Summary optimized to highlight relevant experience for the target role'
         }
       }
 
+      console.log('Resume tailoring completed successfully')
+      
       return {
-        tailoredProfile: tailoredProfile as LinkedInProfile,
+        tailoredProfile: processedTailoredProfile,
         insights: processedInsights
       }
     } catch (error) {
       console.error('Error generating tailored resume:', error)
+      if (error instanceof Error) {
+        throw error
+      }
       throw new Error('Failed to generate tailored resume. Please try again.')
     }
   }

@@ -85,9 +85,23 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
       setIsProcessing(false)
       setProgress(0)
       setCurrentStep('')
-      setErrors({ 
-        general: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.' 
-      })
+      
+      let errorMessage = 'An unexpected error occurred. Please try again.'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+        
+        // Provide specific guidance based on error type
+        if (error.message.includes('LinkedIn profile')) {
+          errorMessage += '\n\nTips:\n• Ensure your LinkedIn profile is public\n• Check that the URL is correct\n• Make sure your profile has work experience listed'
+        } else if (error.message.includes('job posting')) {
+          errorMessage += '\n\nTips:\n• Verify the job posting URL is accessible\n• Try a different job posting URL\n• Ensure the page contains job details'
+        } else if (error.message.includes('work experience')) {
+          errorMessage += '\n\nPlease ensure your LinkedIn profile contains:\n• At least one work experience entry\n• Job titles and company names\n• Employment dates'
+        }
+      }
+      
+      setErrors({ general: errorMessage })
     }
   }
 
@@ -167,7 +181,7 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
               {errors.general && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errors.general}</AlertDescription>
+                  <AlertDescription className="whitespace-pre-line">{errors.general}</AlertDescription>
                 </Alert>
               )}
 
