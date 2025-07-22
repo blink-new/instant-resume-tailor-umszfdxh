@@ -1,58 +1,60 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Header } from '@/components/layout/Header'
 import { LandingPage } from '@/components/pages/LandingPage'
 import { ResumeBuilder } from '@/components/pages/ResumeBuilder'
+import { TemplateGallery } from '@/components/pages/TemplateGallery'
+import { ResumePreview } from '@/components/pages/ResumePreview'
 import { Toaster } from '@/components/ui/toaster'
-import { blink } from '@/blink/client'
 import type { AppStep } from '@/types'
 
 function App() {
-  const [currentStep, setCurrentStep] = useState<AppStep>('input')
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
-      setUser(state.user)
-      setLoading(state.isLoading)
-    })
-    return unsubscribe
-  }, [])
+  const [currentStep, setCurrentStep] = useState<AppStep>('landing')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
 
   const handleGetStarted = () => {
     setCurrentStep('input')
   }
 
   const handleBack = () => {
-    setCurrentStep('input')
+    setCurrentStep('landing')
   }
 
   const handleNext = () => {
-    // This will be expanded as we add more steps
-    console.log('Moving to next step...')
+    // Move to template selection step
+    setCurrentStep('templates')
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
+  const handleTemplateNext = (template: string) => {
+    // Store selected template and move to preview step
+    setSelectedTemplate(template)
+    setCurrentStep('preview')
   }
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
-      {currentStep === 'input' && !user && (
+      {currentStep === 'landing' && (
         <LandingPage onGetStarted={handleGetStarted} />
       )}
       
-      {currentStep === 'input' && user && (
+      {currentStep === 'input' && (
         <ResumeBuilder onBack={handleBack} onNext={handleNext} />
+      )}
+
+      {currentStep === 'templates' && (
+        <TemplateGallery 
+          onBack={() => setCurrentStep('input')} 
+          onNext={handleTemplateNext} 
+        />
+      )}
+
+      {currentStep === 'preview' && (
+        <ResumePreview 
+          onBack={() => setCurrentStep('templates')} 
+          onNext={() => setCurrentStep('payment')}
+          selectedTemplate={selectedTemplate}
+        />
       )}
       
       <Toaster />

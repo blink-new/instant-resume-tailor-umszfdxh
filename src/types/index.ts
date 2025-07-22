@@ -36,4 +36,4 @@ export interface ResumeTemplate {
   description: string
 }
 
-export type AppStep = 'input' | 'processing' | 'templates' | 'preview' | 'payment' | 'download'
+export type AppStep = 'landing' | 'input' | 'processing' | 'templates' | 'preview' | 'payment' | 'download'
