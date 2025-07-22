@@ -22,7 +22,7 @@ export function ResumePreview({ onBack, onNext, selectedTemplate, profile, job, 
   const [showWatermark, setShowWatermark] = useState(true)
 
   const ResumeContent = () => (
-    <div className="bg-white p-8 shadow-lg relative overflow-hidden">
+    <div className="bg-white p-6 shadow-lg relative overflow-hidden text-sm leading-tight">
       {/* Watermark Overlay */}
       {showWatermark && (
         <div className="absolute inset-0 bg-black/5 flex items-center justify-center pointer-events-none z-10">
@@ -32,11 +32,11 @@ export function ResumePreview({ onBack, onNext, selectedTemplate, profile, job, 
         </div>
       )}
 
-      {/* Resume Header */}
-      <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{profile.name}</h1>
-        <h2 className="text-xl text-blue-600 mb-3">{profile.headline}</h2>
-        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600">
+      {/* Resume Header - Compact */}
+      <div className="text-center mb-4">
+        <h1 className="text-xl font-bold text-gray-900 mb-1">{profile.name}</h1>
+        <h2 className="text-base text-blue-600 mb-2">{profile.headline}</h2>
+        <div className="flex flex-wrap justify-center gap-3 text-xs text-gray-600">
           <span>{profile.name.toLowerCase().replace(' ', '.')}@email.com</span>
           <span>(555) 123-4567</span>
           <span>{profile.location}</span>
@@ -44,55 +44,55 @@ export function ResumePreview({ onBack, onNext, selectedTemplate, profile, job, 
         </div>
       </div>
 
-      <Separator className="mb-6" />
+      <Separator className="mb-4" />
 
-      {/* Professional Summary */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Professional Summary</h3>
-        <p className="text-gray-700 leading-relaxed">{profile.summary}</p>
+      {/* Professional Summary - Compact */}
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2 uppercase tracking-wide">Professional Summary</h3>
+        <p className="text-gray-700 text-xs leading-relaxed">{profile.summary}</p>
       </div>
 
-      {/* Skills */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Technical Skills</h3>
-        <div className="flex flex-wrap gap-2">
-          {profile.skills.map((skill, index) => (
-            <Badge key={index} variant="secondary" className="bg-blue-50 text-blue-700">
+      {/* Skills - Compact */}
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2 uppercase tracking-wide">Core Skills</h3>
+        <div className="flex flex-wrap gap-1">
+          {profile.skills.slice(0, 12).map((skill, index) => (
+            <Badge key={index} variant="secondary" className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5">
               {skill}
             </Badge>
           ))}
         </div>
       </div>
 
-      {/* Experience */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Professional Experience</h3>
+      {/* Experience - Compact */}
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Professional Experience</h3>
         {profile.experience.map((exp, index) => (
-          <div key={index} className="mb-4">
-            <div className="flex justify-between items-start mb-2">
+          <div key={index} className="mb-3">
+            <div className="flex justify-between items-start mb-1">
               <div>
-                <h4 className="font-semibold text-gray-900">{exp.title}</h4>
-                <p className="text-blue-600">{exp.company}</p>
+                <h4 className="font-semibold text-gray-900 text-sm">{exp.title}</h4>
+                <p className="text-blue-600 text-xs">{exp.company}</p>
               </div>
-              <span className="text-sm text-gray-500">{exp.duration}</span>
+              <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{exp.duration}</span>
             </div>
-            <div className="text-gray-700 ml-4">
+            <div className="text-gray-700 text-xs leading-relaxed">
               <p>{exp.description}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Education */}
+      {/* Education - Compact */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Education</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-2 uppercase tracking-wide">Education</h3>
         {profile.education.map((edu, index) => (
-          <div key={index} className="flex justify-between mb-2">
+          <div key={index} className="flex justify-between mb-1">
             <div>
-              <h4 className="font-semibold text-gray-900">{edu.degree} in {edu.field}</h4>
-              <p className="text-gray-600">{edu.school}</p>
+              <h4 className="font-semibold text-gray-900 text-xs">{edu.degree} in {edu.field}</h4>
+              <p className="text-gray-600 text-xs">{edu.school}</p>
             </div>
-            <span className="text-sm text-gray-500">{edu.duration}</span>
+            <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{edu.duration}</span>
           </div>
         ))}
       </div>
