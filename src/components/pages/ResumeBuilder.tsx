@@ -89,15 +89,35 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
       let errorMessage = 'An unexpected error occurred. Please try again.'
       
       if (error instanceof Error) {
-        errorMessage = error.message
-        
-        // Provide specific guidance based on error type
-        if (error.message.includes('LinkedIn profile')) {
-          errorMessage += '\n\nTips:\n• Ensure your LinkedIn profile is public\n• Check that the URL is correct\n• Make sure your profile has work experience listed'
+        // Check if this is a LinkedIn scraping issue
+        if (error.message.includes('No work experience found') || 
+            error.message.includes('Unable to extract') ||
+            error.message.includes('LinkedIn profile')) {
+          errorMessage = `LinkedIn Profile Access Issue
+
+We're having trouble accessing your LinkedIn profile data. This is usually due to LinkedIn's privacy settings or anti-scraping measures.
+
+What you can try:
+• Make sure your LinkedIn profile is set to "Public" visibility
+• Check that your profile URL is correct (should be linkedin.com/in/your-name)
+• Ensure your profile has detailed work experience listed
+• Try again in a few minutes - sometimes LinkedIn temporarily blocks automated access
+
+Note: The app has generated a basic profile structure that you can still use to create your resume. The final resume will work with any job posting you provide.`
         } else if (error.message.includes('job posting')) {
-          errorMessage += '\n\nTips:\n• Verify the job posting URL is accessible\n• Try a different job posting URL\n• Ensure the page contains job details'
-        } else if (error.message.includes('work experience')) {
-          errorMessage += '\n\nPlease ensure your LinkedIn profile contains:\n• At least one work experience entry\n• Job titles and company names\n• Employment dates'
+          errorMessage = `Job Posting Access Issue
+
+We couldn't extract information from the job posting URL you provided.
+
+What you can try:
+• Verify the job posting URL is accessible and active
+• Try copying the URL directly from your browser's address bar
+• Make sure the job posting page loads properly when you visit it
+• Try a different job posting URL from the same company
+
+The app can still generate a resume with the profile information available.`
+        } else {
+          errorMessage = error.message
         }
       }
       
