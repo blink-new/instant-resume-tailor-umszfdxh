@@ -20,6 +20,7 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState('')
   const [errors, setErrors] = useState<{ linkedin?: string; job?: string; general?: string }>({})
+  const [showDemoOption, setShowDemoOption] = useState(false)
 
   const validateUrls = () => {
     const newErrors: { linkedin?: string; job?: string } = {}
@@ -89,10 +90,30 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
       let errorMessage = 'An unexpected error occurred. Please try again.'
       
       if (error instanceof Error) {
-        // Check if this is a LinkedIn scraping issue
-        if (error.message.includes('No work experience found') || 
-            error.message.includes('Unable to extract') ||
-            error.message.includes('LinkedIn profile')) {
+        // Check if this is a scraping/network issue
+        if (error.message.includes('BlinkNetworkError') || 
+            error.message.includes('Internal server error') ||
+            error.message.includes('file_processing_error') ||
+            error.message.includes('scraping') ||
+            error.message.includes('Unable to access')) {
+          errorMessage = `Website Access Issue
+
+We're experiencing difficulties accessing the websites you provided. This can happen due to:
+
+• LinkedIn's anti-scraping measures (very common)
+• Job posting sites blocking automated access
+• Temporary server issues
+• Network connectivity problems
+
+SOLUTIONS:
+1. Try again in a few minutes - these issues are often temporary
+2. Make sure your LinkedIn profile is set to "Public" visibility
+3. Verify both URLs load properly in your browser
+4. Try the demo mode below to see how the app works
+
+Don't worry - this is a common issue with web scraping, and we're working to improve reliability.`
+          setShowDemoOption(true)
+        } else if (error.message.includes('LinkedIn profile')) {
           errorMessage = `LinkedIn Profile Access Issue
 
 We're having trouble accessing your LinkedIn profile data. This is usually due to LinkedIn's privacy settings or anti-scraping measures.
@@ -103,7 +124,8 @@ What you can try:
 • Ensure your profile has detailed work experience listed
 • Try again in a few minutes - sometimes LinkedIn temporarily blocks automated access
 
-Note: The app has generated a basic profile structure that you can still use to create your resume. The final resume will work with any job posting you provide.`
+Note: You can try the demo mode below to see how the app works.`
+          setShowDemoOption(true)
         } else if (error.message.includes('job posting')) {
           errorMessage = `Job Posting Access Issue
 
@@ -115,13 +137,63 @@ What you can try:
 • Make sure the job posting page loads properly when you visit it
 • Try a different job posting URL from the same company
 
-The app can still generate a resume with the profile information available.`
+You can also try the demo mode below to see how the app works.`
+          setShowDemoOption(true)
         } else {
           errorMessage = error.message
         }
       }
       
       setErrors({ general: errorMessage })
+    }
+  }
+
+  const handleDemoMode = async () => {
+    setIsProcessing(true)
+    setProgress(0)
+    setErrors({})
+    setCurrentStep('Loading demo data...')
+    
+    try {
+      // Simulate processing time for better UX
+      setProgress(25)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setCurrentStep('Generating sample profile...')
+      setProgress(50)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setCurrentStep('Creating sample job posting...')
+      setProgress(75)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Get sample data
+      const { profile, job } = parsingService.createSampleData()
+      
+      setCurrentStep('Tailoring resume content...')
+      setProgress(90)
+      
+      // Generate tailored resume with sample data
+      const { tailoredProfile, insights } = await parsingService.generateTailoredResume(profile, job)
+      
+      setProgress(100)
+      setCurrentStep('Demo ready!')
+      
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      setIsProcessing(false)
+      onNext({ 
+        profile: tailoredProfile, 
+        job, 
+        insights 
+      })
+      
+    } catch (error) {
+      console.error('Error in demo mode:', error)
+      setIsProcessing(false)
+      setProgress(0)
+      setCurrentStep('')
+      setErrors({ general: 'Demo mode failed. Please try again.' })
     }
   }
 
@@ -233,6 +305,43 @@ The app can still generate a resume with the profile information available.`
                   </>
                 )}
               </Button>
+
+              {showDemoOption && (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">Or try demo mode</span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleDemoMode}
+                    variant="outline"
+                    className="w-full"
+                    disabled={isProcessing}
+                    size="lg"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Loading Demo...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Try Demo with Sample Data
+                      </>
+                    )}
+                  </Button>
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    Demo mode uses sample profile and job data to show you how the app works
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -263,6 +372,14 @@ The app can still generate a resume with the profile information available.`
               <AlertDescription>
                 <strong>Privacy Note:</strong> We only extract publicly available information from your LinkedIn profile. 
                 Your data is processed securely and never stored permanently.
+              </AlertDescription>
+            </Alert>
+
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Having trouble with URLs?</strong> If you encounter access issues, try our demo mode to see how the app works with sample data. 
+                This is common due to website anti-scraping measures.
               </AlertDescription>
             </Alert>
 

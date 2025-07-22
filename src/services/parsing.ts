@@ -121,6 +121,165 @@ export interface TailoringInsights {
 
 export class ParsingService {
   /**
+   * Scrape URL with retry logic and better error handling
+   */
+  private async scrapeWithRetry(url: string, type: string, maxRetries: number = 2): Promise<{ markdown: string; metadata: any }> {
+    let lastError: Error | null = null
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempting to scrape ${type} (attempt ${attempt}/${maxRetries}):`, url)
+        
+        // Add a small delay between retries
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+        }
+        
+        const result = await blink.data.scrape(url)
+        
+        if (result && (result.markdown || result.metadata)) {
+          console.log(`Successfully scraped ${type} on attempt ${attempt}`)
+          return {
+            markdown: result.markdown || '',
+            metadata: result.metadata || {}
+          }
+        } else {
+          throw new Error(`No content returned from ${type} scraping`)
+        }
+        
+      } catch (error) {
+        console.warn(`${type} scraping attempt ${attempt} failed:`, error)
+        lastError = error instanceof Error ? error : new Error(String(error))
+        
+        // If this is the last attempt, we'll throw the error
+        if (attempt === maxRetries) {
+          break
+        }
+      }
+    }
+    
+    // All retries failed
+    console.error(`All ${maxRetries} attempts to scrape ${type} failed. Last error:`, lastError)
+    throw lastError || new Error(`Failed to scrape ${type} after ${maxRetries} attempts`)
+  }
+
+  /**
+   * Create sample data for demo purposes
+   */
+  createSampleData(): { profile: LinkedInProfile; job: JobPosting } {
+    const profile: LinkedInProfile = {
+      name: 'Alex Johnson',
+      headline: 'Senior Software Engineer | Full-Stack Developer',
+      location: 'San Francisco, CA',
+      summary: 'Experienced software engineer with 5+ years of experience building scalable web applications. Passionate about clean code, user experience, and modern development practices. Proven track record of leading technical projects and mentoring junior developers.',
+      experience: [
+        {
+          title: 'Senior Software Engineer',
+          company: 'TechCorp Inc.',
+          duration: '2022 - Present',
+          location: 'San Francisco, CA',
+          description: 'Lead development of customer-facing web applications serving 100K+ users. Architected microservices infrastructure reducing response times by 40%. Mentored 3 junior developers and established code review processes.',
+          skills: ['React', 'Node.js', 'TypeScript', 'AWS', 'PostgreSQL']
+        },
+        {
+          title: 'Software Engineer',
+          company: 'StartupXYZ',
+          duration: '2020 - 2022',
+          location: 'San Francisco, CA',
+          description: 'Built full-stack features for B2B SaaS platform. Implemented real-time data processing pipeline handling 1M+ events daily. Collaborated with product team to deliver user-requested features.',
+          skills: ['JavaScript', 'Python', 'React', 'Django', 'Redis']
+        },
+        {
+          title: 'Junior Developer',
+          company: 'WebSolutions LLC',
+          duration: '2019 - 2020',
+          location: 'San Francisco, CA',
+          description: 'Developed responsive websites and web applications for small businesses. Gained experience in modern web technologies and agile development practices.',
+          skills: ['HTML', 'CSS', 'JavaScript', 'PHP', 'MySQL']
+        }
+      ],
+      education: [
+        {
+          school: 'University of California, Berkeley',
+          degree: 'Bachelor of Science',
+          field: 'Computer Science',
+          duration: '2015 - 2019',
+          gpa: '3.7',
+          honors: ['Dean\'s List', 'CS Honor Society']
+        }
+      ],
+      skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python', 'AWS', 'PostgreSQL', 'Redis', 'Docker', 'Git'],
+      certifications: [
+        {
+          name: 'AWS Certified Solutions Architect',
+          issuer: 'Amazon Web Services',
+          date: '2023',
+          credentialId: 'AWS-CSA-2023-001'
+        }
+      ],
+      languages: [
+        { name: 'English', proficiency: 'Native' },
+        { name: 'Spanish', proficiency: 'Conversational' }
+      ],
+      projects: [
+        {
+          name: 'E-commerce Platform',
+          description: 'Built a full-stack e-commerce platform with React, Node.js, and PostgreSQL',
+          technologies: ['React', 'Node.js', 'PostgreSQL', 'Stripe'],
+          url: 'https://github.com/alexjohnson/ecommerce'
+        }
+      ],
+      volunteering: [],
+      awards: []
+    }
+
+    const job: JobPosting = {
+      title: 'Senior Full-Stack Developer',
+      company: 'InnovateTech Solutions',
+      location: 'San Francisco, CA',
+      employmentType: 'Full-time',
+      experienceLevel: 'Senior',
+      description: 'We are seeking a Senior Full-Stack Developer to join our growing engineering team. You will be responsible for building and maintaining our core platform, working with modern technologies, and collaborating with cross-functional teams.',
+      requirements: {
+        required: [
+          '5+ years of software development experience',
+          'Strong proficiency in JavaScript and TypeScript',
+          'Experience with React and Node.js',
+          'Knowledge of database design and SQL',
+          'Experience with cloud platforms (AWS preferred)'
+        ],
+        preferred: [
+          'Experience with microservices architecture',
+          'Knowledge of containerization (Docker)',
+          'Previous startup experience',
+          'Experience mentoring junior developers'
+        ],
+        education: ['Bachelor\'s degree in Computer Science or related field'],
+        experience: ['5+ years full-stack development', 'Experience with modern web frameworks'],
+        skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'AWS', 'PostgreSQL'],
+        certifications: ['AWS certifications preferred']
+      },
+      responsibilities: [
+        'Design and develop scalable web applications',
+        'Collaborate with product and design teams',
+        'Mentor junior developers',
+        'Participate in code reviews and technical discussions',
+        'Contribute to architectural decisions'
+      ],
+      benefits: [
+        'Competitive salary and equity',
+        'Health, dental, and vision insurance',
+        'Flexible work arrangements',
+        'Professional development budget'
+      ],
+      keywords: ['full-stack', 'javascript', 'typescript', 'react', 'nodejs', 'aws', 'postgresql', 'senior developer'],
+      industryTerms: ['microservices', 'scalable', 'agile', 'CI/CD', 'cloud-native']
+    }
+
+    return { profile, job }
+  }
+
+  /**
    * Create a fallback profile when LinkedIn scraping fails
    */
   private createFallbackProfile(url: string): LinkedInProfile {
@@ -163,8 +322,18 @@ export class ParsingService {
     try {
       console.log('Starting LinkedIn profile parsing for:', url)
       
-      // First, scrape the LinkedIn profile page
-      const { markdown, metadata } = await blink.data.scrape(url)
+      // First, try to scrape the LinkedIn profile page with retry logic
+      let markdown: string = ''
+      let metadata: any = {}
+      
+      try {
+        const result = await this.scrapeWithRetry(url, 'LinkedIn profile')
+        markdown = result.markdown || ''
+        metadata = result.metadata || {}
+      } catch (scrapeError) {
+        console.warn('LinkedIn scraping failed, will use fallback profile:', scrapeError)
+        // Continue with empty content - we'll handle this below
+      }
       
       if (!markdown || markdown.trim().length < 100) {
         console.warn('Limited content extracted from LinkedIn. This may be due to LinkedIn\'s anti-scraping measures.')
@@ -325,8 +494,18 @@ export class ParsingService {
     try {
       console.log('Starting job posting parsing for:', url)
       
-      // Scrape the job posting page
-      const { markdown, metadata } = await blink.data.scrape(url)
+      // Try to scrape the job posting page with retry logic
+      let markdown: string = ''
+      let metadata: any = {}
+      
+      try {
+        const result = await this.scrapeWithRetry(url, 'job posting')
+        markdown = result.markdown || ''
+        metadata = result.metadata || {}
+      } catch (scrapeError) {
+        console.error('Job posting scraping failed:', scrapeError)
+        throw new Error(`Unable to access the job posting at ${url}. Please ensure the URL is correct and the page is publicly accessible. You can try:\n\n• Checking that the job posting URL loads in your browser\n• Using a direct link to the job posting (not a search result)\n• Trying a different job posting from the same company\n• Making sure the job posting is still active`)
+      }
       
       if (!markdown || markdown.trim().length < 50) {
         throw new Error('Unable to extract sufficient content from job posting. Please ensure the URL is accessible.')
