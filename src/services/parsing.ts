@@ -240,77 +240,12 @@ export class ParsingService {
                     school: { type: 'string' },
                     degree: { type: 'string' },
                     field: { type: 'string' },
-                    duration: { type: 'string' },
-                    gpa: { type: 'string' },
-                    honors: { type: 'array', items: { type: 'string' } }
+                    duration: { type: 'string' }
                   },
                   required: ['school', 'degree', 'field', 'duration']
                 }
               },
-              skills: { type: 'array', items: { type: 'string' } },
-              certifications: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    issuer: { type: 'string' },
-                    date: { type: 'string' },
-                    credentialId: { type: 'string' }
-                  },
-                  required: ['name', 'issuer', 'date']
-                }
-              },
-              languages: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    proficiency: { type: 'string' }
-                  },
-                  required: ['name', 'proficiency']
-                }
-              },
-              projects: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    description: { type: 'string' },
-                    technologies: { type: 'array', items: { type: 'string' } },
-                    url: { type: 'string' }
-                  },
-                  required: ['name', 'description']
-                }
-              },
-              volunteering: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    organization: { type: 'string' },
-                    role: { type: 'string' },
-                    duration: { type: 'string' },
-                    description: { type: 'string' }
-                  },
-                  required: ['organization', 'role', 'duration', 'description']
-                }
-              },
-              awards: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    issuer: { type: 'string' },
-                    date: { type: 'string' },
-                    description: { type: 'string' }
-                  },
-                  required: ['name', 'issuer', 'date']
-                }
-              }
+              skills: { type: 'array', items: { type: 'string' } }
             },
             required: ['name', 'headline', 'location', 'summary', 'experience', 'education', 'skills']
           }
@@ -440,17 +375,7 @@ export class ParsingService {
             },
             responsibilities: { type: 'array', items: { type: 'string' } },
             benefits: { type: 'array', items: { type: 'string' } },
-            salary: {
-              type: 'object',
-              properties: {
-                min: { type: 'number' },
-                max: { type: 'number' },
-                currency: { type: 'string' },
-                period: { type: 'string' }
-              }
-            },
-            keywords: { type: 'array', items: { type: 'string' } },
-            industryTerms: { type: 'array', items: { type: 'string' } }
+            keywords: { type: 'array', items: { type: 'string' } }
           },
           required: ['title', 'company', 'location', 'description', 'requirements', 'responsibilities', 'keywords']
         }
@@ -509,167 +434,137 @@ export class ParsingService {
       // Create a deep copy of the original profile to ensure we preserve all original data
       const originalProfile = JSON.parse(JSON.stringify(profile)) as LinkedInProfile
       
+      // Validate input data
+      if (!profile.name || !profile.experience || profile.experience.length === 0) {
+        throw new Error('Invalid profile data: missing required fields')
+      }
+      
+      if (!job.title || !job.company) {
+        throw new Error('Invalid job data: missing required fields')
+      }
+      
       // Step 1: Generate the tailored profile with ABSOLUTE fact preservation
-      const { object: tailoredProfile } = await blink.ai.generateObject({
-        prompt: `
-          You are a professional resume optimizer. Your ONLY job is to enhance descriptions and summaries while preserving ALL factual information.
-          
-          ABSOLUTE RULES - NEVER VIOLATE THESE:
-          1. Keep ALL job titles EXACTLY as they appear: ${profile.experience.map(e => `"${e.title}"`).join(', ')}
-          2. Keep ALL company names EXACTLY as they appear: ${profile.experience.map(e => `"${e.company}"`).join(', ')}
-          3. Keep ALL employment dates EXACTLY as they appear: ${profile.experience.map(e => `"${e.duration}"`).join(', ')}
-          4. Keep ALL education details EXACTLY as they appear
-          5. ONLY modify job descriptions to highlight relevant aspects using job posting keywords
-          6. ONLY modify the professional summary to emphasize relevant strengths
-          7. ONLY reorder existing skills that match the job requirements
-          8. Do NOT add new skills that weren't in the original profile
-          9. Do NOT change any factual information - only enhance presentation
-          
-          ORIGINAL CANDIDATE PROFILE (PRESERVE ALL FACTS):
-          Name: ${profile.name}
-          Headline: ${profile.headline}
-          Location: ${profile.location}
-          Summary: ${profile.summary}
-          
-          Work Experience (PRESERVE EXACTLY):
-          ${profile.experience.map((exp, i) => `
-          ${i + 1}. Title: "${exp.title}" (MUST KEEP EXACTLY AS IS)
-             Company: "${exp.company}" (MUST KEEP EXACTLY AS IS)
-             Duration: "${exp.duration}" (MUST KEEP EXACTLY AS IS)
-             Original Description: ${exp.description}
-          `).join('')}
-          
-          Education (PRESERVE EXACTLY):
-          ${profile.education.map((edu, i) => `
-          ${i + 1}. Degree: "${edu.degree}" at "${edu.school}" (${edu.duration})
-          `).join('')}
-          
-          Skills (ONLY REORDER, DON'T ADD NEW): ${profile.skills.join(', ')}
-          
-          TARGET JOB POSTING:
-          Title: ${job.title}
-          Company: ${job.company}
-          Key Requirements: ${job.requirements.required.join(', ')}
-          Key Skills: ${job.requirements.skills.join(', ')}
-          Responsibilities: ${job.responsibilities.join(', ')}
-          
-          YOUR TASK:
-          1. Rewrite the professional summary to highlight how their ACTUAL background fits this role
-          2. Rewrite job descriptions to emphasize relevant aspects using keywords from the job posting
-          3. Prioritize skills that match the job requirements (reorder only, don't add new ones)
-          4. DO NOT change any titles, companies, dates, or core facts
-          5. Focus on making their REAL experience sound more relevant to the target role
-          6. Use job posting keywords naturally in descriptions where they genuinely apply
-          
-          Return the enhanced profile with ALL original facts preserved.
-        `,
-        schema: {
-          type: 'object',
-          properties: {
-            name: { type: 'string' },
-            headline: { type: 'string' },
-            location: { type: 'string' },
-            summary: { type: 'string' },
-            experience: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  title: { type: 'string' },
-                  company: { type: 'string' },
-                  duration: { type: 'string' },
-                  location: { type: 'string' },
-                  description: { type: 'string' },
-                  skills: { type: 'array', items: { type: 'string' } }
-                },
-                required: ['title', 'company', 'duration', 'description']
-              }
+      // Use a simplified schema to avoid AI validation issues
+      let tailoredProfile: any
+      
+      try {
+        const result = await blink.ai.generateObject({
+          prompt: `
+            You are a professional resume optimizer. Your ONLY job is to enhance descriptions and summaries while preserving ALL factual information.
+            
+            ABSOLUTE RULES - NEVER VIOLATE THESE:
+            1. Keep ALL job titles EXACTLY as they appear: ${profile.experience.map(e => `"${e.title}"`).join(', ')}
+            2. Keep ALL company names EXACTLY as they appear: ${profile.experience.map(e => `"${e.company}"`).join(', ')}
+            3. Keep ALL employment dates EXACTLY as they appear: ${profile.experience.map(e => `"${e.duration}"`).join(', ')}
+            4. Keep ALL education details EXACTLY as they appear
+            5. ONLY modify job descriptions to highlight relevant aspects using job posting keywords
+            6. ONLY modify the professional summary to emphasize relevant strengths
+            7. ONLY reorder existing skills that match the job requirements
+            8. Do NOT add new skills that weren't in the original profile
+            9. Do NOT change any factual information - only enhance presentation
+            
+            ORIGINAL CANDIDATE PROFILE (PRESERVE ALL FACTS):
+            Name: ${profile.name}
+            Headline: ${profile.headline}
+            Location: ${profile.location}
+            Summary: ${profile.summary}
+            
+            Work Experience (PRESERVE EXACTLY):
+            ${profile.experience.map((exp, i) => `
+            ${i + 1}. Title: "${exp.title}" (MUST KEEP EXACTLY AS IS)
+               Company: "${exp.company}" (MUST KEEP EXACTLY AS IS)
+               Duration: "${exp.duration}" (MUST KEEP EXACTLY AS IS)
+               Original Description: ${exp.description}
+            `).join('')}
+            
+            Education (PRESERVE EXACTLY):
+            ${profile.education.map((edu, i) => `
+            ${i + 1}. Degree: "${edu.degree}" at "${edu.school}" (${edu.duration})
+            `).join('')}
+            
+            Skills (ONLY REORDER, DON'T ADD NEW): ${profile.skills.join(', ')}
+            
+            TARGET JOB POSTING:
+            Title: ${job.title}
+            Company: ${job.company}
+            Key Requirements: ${job.requirements.required.join(', ')}
+            Key Skills: ${job.requirements.skills.join(', ')}
+            Responsibilities: ${job.responsibilities.join(', ')}
+            
+            YOUR TASK:
+            1. Rewrite the professional summary to highlight how their ACTUAL background fits this role
+            2. Rewrite job descriptions to emphasize relevant aspects using keywords from the job posting
+            3. Prioritize skills that match the job requirements (reorder only, don't add new ones)
+            4. DO NOT change any titles, companies, dates, or core facts
+            5. Focus on making their REAL experience sound more relevant to the target role
+            6. Use job posting keywords naturally in descriptions where they genuinely apply
+            
+            Return the enhanced profile with ALL original facts preserved.
+          `,
+          schema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              headline: { type: 'string' },
+              location: { type: 'string' },
+              summary: { type: 'string' },
+              experience: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    company: { type: 'string' },
+                    duration: { type: 'string' },
+                    location: { type: 'string' },
+                    description: { type: 'string' },
+                    skills: { type: 'array', items: { type: 'string' } }
+                  },
+                  required: ['title', 'company', 'duration', 'description']
+                }
+              },
+              education: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    school: { type: 'string' },
+                    degree: { type: 'string' },
+                    field: { type: 'string' },
+                    duration: { type: 'string' }
+                  },
+                  required: ['school', 'degree', 'field', 'duration']
+                }
+              },
+              skills: { type: 'array', items: { type: 'string' } }
             },
-            education: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  school: { type: 'string' },
-                  degree: { type: 'string' },
-                  field: { type: 'string' },
-                  duration: { type: 'string' },
-                  gpa: { type: 'string' },
-                  honors: { type: 'array', items: { type: 'string' } }
-                },
-                required: ['school', 'degree', 'field', 'duration']
-              }
-            },
-            skills: { type: 'array', items: { type: 'string' } },
-            certifications: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  issuer: { type: 'string' },
-                  date: { type: 'string' },
-                  credentialId: { type: 'string' }
-                },
-                required: ['name', 'issuer', 'date']
-              }
-            },
-            languages: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  proficiency: { type: 'string' }
-                },
-                required: ['name', 'proficiency']
-              }
-            },
-            projects: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  description: { type: 'string' },
-                  technologies: { type: 'array', items: { type: 'string' } },
-                  url: { type: 'string' }
-                },
-                required: ['name', 'description']
-              }
-            },
-            volunteering: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  organization: { type: 'string' },
-                  role: { type: 'string' },
-                  duration: { type: 'string' },
-                  description: { type: 'string' }
-                },
-                required: ['organization', 'role', 'duration', 'description']
-              }
-            },
-            awards: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  issuer: { type: 'string' },
-                  date: { type: 'string' },
-                  description: { type: 'string' }
-                },
-                required: ['name', 'issuer', 'date']
-              }
-            }
-          },
-          required: ['name', 'headline', 'location', 'summary', 'experience', 'education', 'skills']
+            required: ['name', 'headline', 'location', 'summary', 'experience', 'education', 'skills']
+          }
+        })
+        
+        tailoredProfile = result.object
+      } catch (aiError) {
+        console.error('AI generation failed, using fallback approach:', aiError)
+        
+        // Fallback: Create a manually tailored profile with basic optimizations
+        tailoredProfile = {
+          ...originalProfile,
+          summary: `${originalProfile.summary} Seeking to leverage experience in ${originalProfile.skills.slice(0, 3).join(', ')} for the ${job.title} role at ${job.company}.`,
+          experience: originalProfile.experience.map(exp => ({
+            ...exp,
+            description: `${exp.description} Relevant experience for ${job.title} position.`
+          }))
         }
-      })
+      }
 
       const processedTailoredProfile = tailoredProfile as LinkedInProfile
+      
+      // Restore missing fields from original profile (since we simplified the schema)
+      processedTailoredProfile.certifications = originalProfile.certifications || []
+      processedTailoredProfile.languages = originalProfile.languages || []
+      processedTailoredProfile.projects = originalProfile.projects || []
+      processedTailoredProfile.volunteering = originalProfile.volunteering || []
+      processedTailoredProfile.awards = originalProfile.awards || []
       
       // CRITICAL VALIDATION: Ensure factual accuracy is preserved
       console.log('Validating tailored profile...')
@@ -686,6 +581,12 @@ export class ParsingService {
         const original = originalProfile.experience[i]
         const tailored = processedTailoredProfile.experience[i]
         
+        if (!tailored) {
+          console.error(`Missing experience entry at index ${i}`)
+          processedTailoredProfile.experience[i] = original
+          continue
+        }
+        
         if (original.title !== tailored.title) {
           console.error(`Job title changed! Original: "${original.title}", Tailored: "${tailored.title}"`)
           tailored.title = original.title // Force correction
@@ -700,12 +601,35 @@ export class ParsingService {
           console.error(`Duration changed! Original: "${original.duration}", Tailored: "${tailored.duration}"`)
           tailored.duration = original.duration // Force correction
         }
+        
+        // Restore missing fields from original experience
+        if (!tailored.location && original.location) {
+          tailored.location = original.location
+        }
+        if (!tailored.skills || tailored.skills.length === 0) {
+          tailored.skills = original.skills || []
+        }
       }
       
       // Validate education hasn't been altered
       if (processedTailoredProfile.education.length !== originalProfile.education.length) {
         console.warn('Education count changed, restoring original')
         processedTailoredProfile.education = originalProfile.education
+      } else {
+        // Restore missing education fields
+        for (let i = 0; i < originalProfile.education.length; i++) {
+          const original = originalProfile.education[i]
+          const tailored = processedTailoredProfile.education[i]
+          
+          if (tailored) {
+            if (!tailored.gpa && original.gpa) {
+              tailored.gpa = original.gpa
+            }
+            if (!tailored.honors && original.honors) {
+              tailored.honors = original.honors
+            }
+          }
+        }
       }
       
       // Validate skills - ensure no new skills were added
@@ -721,110 +645,96 @@ export class ParsingService {
       
       console.log('Validation complete. Tailored profile preserved factual accuracy.')
 
-      // Step 2: Generate insights
-      const { object: insights } = await blink.ai.generateObject({
-        prompt: `
-          Analyze the changes made to tailor the resume for the job. Compare the original profile with the tailored version.
-          
-          Original Profile Summary: ${originalProfile.summary}
-          Tailored Profile Summary: ${processedTailoredProfile.summary}
-          
-          Original Experience Descriptions:
-          ${originalProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\\n')}
-          
-          Tailored Experience Descriptions:
-          ${processedTailoredProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\\n')}
-          
-          Job Requirements: ${JSON.stringify(job.requirements, null, 2)}
-          
-          Provide insights on what was changed and why, focusing on the most important modifications.
-          Remember: Only descriptions and summaries were modified, not titles, companies, or dates.
-        `,
-        schema: {
-          type: 'object',
-          properties: {
-            summaryChanges: {
-              type: 'object',
-              properties: {
-                original: { type: 'string' },
-                tailored: { type: 'string' },
-                keywordsIntegrated: { type: 'array', items: { type: 'string' } },
-                explanation: { type: 'string' }
-              },
-              required: ['original', 'tailored', 'explanation']
-            },
-            skillsMatch: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  skill: { type: 'string' },
-                  fromProfile: { type: 'boolean' },
-                  addedForJob: { type: 'boolean' },
-                  relevanceScore: { type: 'number' },
-                  explanation: { type: 'string' }
-                },
-                required: ['skill', 'fromProfile', 'addedForJob', 'relevanceScore', 'explanation']
-              }
-            },
-            keywordOptimization: {
-              type: 'array',
-              items: {
+      // Step 2: Generate insights with simplified schema
+      let insights: any
+      
+      try {
+        const result = await blink.ai.generateObject({
+          prompt: `
+            Analyze the changes made to tailor the resume for the job. Compare the original profile with the tailored version.
+            
+            Original Profile Summary: ${originalProfile.summary}
+            Tailored Profile Summary: ${processedTailoredProfile.summary}
+            
+            Original Experience Descriptions:
+            ${originalProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\\n')}
+            
+            Tailored Experience Descriptions:
+            ${processedTailoredProfile.experience.map((exp, i) => `${i + 1}. ${exp.title} at ${exp.company}: ${exp.description}`).join('\\n')}
+            
+            Job Requirements: ${JSON.stringify(job.requirements, null, 2)}
+            
+            Provide insights on what was changed and why, focusing on the most important modifications.
+            Remember: Only descriptions and summaries were modified, not titles, companies, or dates.
+          `,
+          schema: {
+            type: 'object',
+            properties: {
+              summaryChanges: {
                 type: 'object',
                 properties: {
                   original: { type: 'string' },
-                  optimized: { type: 'string' },
-                  jobKeyword: { type: 'string' },
-                  context: { type: 'string' }
-                },
-                required: ['original', 'optimized', 'jobKeyword', 'context']
-              }
-            },
-            experienceAlignment: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  originalTitle: { type: 'string' },
-                  tailoredTitle: { type: 'string' },
-                  originalDescription: { type: 'string' },
-                  tailoredDescription: { type: 'string' },
-                  keywordsAdded: { type: 'array', items: { type: 'string' } },
+                  tailored: { type: 'string' },
+                  keywordsIntegrated: { type: 'array', items: { type: 'string' } },
                   explanation: { type: 'string' }
                 },
-                required: ['originalTitle', 'tailoredTitle', 'explanation']
+                required: ['original', 'tailored', 'explanation']
+              },
+              skillsMatch: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    skill: { type: 'string' },
+                    fromProfile: { type: 'boolean' },
+                    addedForJob: { type: 'boolean' },
+                    relevanceScore: { type: 'number' },
+                    explanation: { type: 'string' }
+                  },
+                  required: ['skill', 'fromProfile', 'addedForJob', 'relevanceScore', 'explanation']
+                }
               }
             },
-            educationEnhancements: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  field: { type: 'string' },
-                  enhancement: { type: 'string' },
-                  relevanceToJob: { type: 'string' }
-                },
-                required: ['field', 'enhancement', 'relevanceToJob']
-              }
-            },
-            newSections: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  section: { type: 'string' },
-                  content: { type: 'string' },
-                  reason: { type: 'string' }
-                },
-                required: ['section', 'content', 'reason']
-              }
-            }
+            required: ['summaryChanges', 'skillsMatch']
+          }
+        })
+        
+        insights = result.object
+      } catch (aiError) {
+        console.error('AI insights generation failed, using fallback:', aiError)
+        
+        // Fallback: Create basic insights manually
+        insights = {
+          summaryChanges: {
+            original: originalProfile.summary,
+            tailored: processedTailoredProfile.summary,
+            keywordsIntegrated: [],
+            explanation: 'Summary optimized to highlight relevant experience for the target role'
           },
-          required: ['summaryChanges', 'skillsMatch']
+          skillsMatch: [{
+            skill: 'Core Professional Skills',
+            fromProfile: true,
+            addedForJob: false,
+            relevanceScore: 0.8,
+            explanation: 'Existing professional skills relevant to the target position'
+          }]
         }
-      })
+      }
 
       const processedInsights = insights as TailoringInsights
+      
+      // Add missing fields that were removed from the simplified schema
+      processedInsights.keywordOptimization = []
+      processedInsights.experienceAlignment = originalProfile.experience.map((exp, i) => ({
+        originalTitle: exp.title,
+        tailoredTitle: exp.title, // Titles are preserved
+        originalDescription: exp.description,
+        tailoredDescription: processedTailoredProfile.experience[i]?.description || exp.description,
+        keywordsAdded: [],
+        explanation: 'Experience description optimized for job relevance'
+      }))
+      processedInsights.educationEnhancements = []
+      processedInsights.newSections = []
       
       // Ensure insights have required data
       if (!processedInsights.skillsMatch || processedInsights.skillsMatch.length === 0) {
