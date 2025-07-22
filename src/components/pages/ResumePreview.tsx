@@ -5,83 +5,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import type { LinkedInProfile, JobPosting, TailoringInsights } from '@/services/parsing'
 
 interface ResumePreviewProps {
   onBack: () => void
   onNext: () => void
   selectedTemplate: string
+  profile: LinkedInProfile
+  job: JobPosting
+  insights: TailoringInsights
 }
 
-// Mock data for demonstration
-const mockTailoringInsights = [
-  {
-    category: "Skills Match",
-    icon: <Target className="w-4 h-4" />,
-    insights: [
-      "Added 'React.js' and 'TypeScript' to match job requirements",
-      "Emphasized 'Agile methodology' experience from previous roles",
-      "Highlighted 'API development' skills from backend projects"
-    ]
-  },
-  {
-    category: "Experience Alignment", 
-    icon: <CheckCircle className="w-4 h-4" />,
-    insights: [
-      "Repositioned 'Team Leadership' experience to match management requirements",
-      "Quantified project impact: '25% performance improvement' aligns with efficiency goals",
-      "Emphasized 'Cross-functional collaboration' from LinkedIn experience"
-    ]
-  },
-  {
-    category: "Keywords Optimization",
-    icon: <Sparkles className="w-4 h-4" />,
-    insights: [
-      "Integrated 'Full-stack development' terminology from job posting",
-      "Added 'Scalable solutions' language to match company values",
-      "Included 'User experience' focus mentioned in role description"
-    ]
-  }
-]
 
-const mockResumeData = {
-  name: "Michael Pevzner",
-  title: "Senior Full-Stack Developer",
-  email: "michael.pevzner@email.com",
-  phone: "(555) 123-4567",
-  location: "San Francisco, CA",
-  linkedin: "linkedin.com/in/michaelpevzner",
-  summary: "Experienced full-stack developer with 8+ years building scalable web applications using React, Node.js, and cloud technologies. Proven track record of leading cross-functional teams and delivering 25% performance improvements through innovative solutions.",
-  experience: [
-    {
-      title: "Senior Software Engineer",
-      company: "TechCorp Inc.",
-      period: "2021 - Present",
-      achievements: [
-        "Led development of React-based dashboard serving 10K+ users",
-        "Implemented TypeScript migration improving code quality by 40%",
-        "Collaborated with design team on user experience improvements"
-      ]
-    },
-    {
-      title: "Full-Stack Developer", 
-      company: "StartupXYZ",
-      period: "2019 - 2021",
-      achievements: [
-        "Built scalable API architecture handling 1M+ requests/day",
-        "Mentored junior developers in Agile methodology practices",
-        "Delivered cross-functional projects 20% ahead of schedule"
-      ]
-    }
-  ],
-  skills: ["React.js", "TypeScript", "Node.js", "API Development", "Agile Methodology", "Team Leadership", "Full-stack Development"],
-  education: {
-    degree: "B.S. Computer Science",
-    school: "University of California, Berkeley",
-    year: "2018"
-  }
-}
 
-export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePreviewProps) {
+export function ResumePreview({ onBack, onNext, selectedTemplate, profile, job, insights }: ResumePreviewProps) {
   const [showWatermark, setShowWatermark] = useState(true)
 
   const ResumeContent = () => (
@@ -97,13 +34,13 @@ export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePrevie
 
       {/* Resume Header */}
       <div className="text-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{mockResumeData.name}</h1>
-        <h2 className="text-xl text-blue-600 mb-3">{mockResumeData.title}</h2>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{profile.name}</h1>
+        <h2 className="text-xl text-blue-600 mb-3">{profile.headline}</h2>
         <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600">
-          <span>{mockResumeData.email}</span>
-          <span>{mockResumeData.phone}</span>
-          <span>{mockResumeData.location}</span>
-          <span>{mockResumeData.linkedin}</span>
+          <span>{profile.name.toLowerCase().replace(' ', '.')}@email.com</span>
+          <span>(555) 123-4567</span>
+          <span>{profile.location}</span>
+          <span>linkedin.com/in/{profile.name.toLowerCase().replace(' ', '')}</span>
         </div>
       </div>
 
@@ -112,14 +49,14 @@ export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePrevie
       {/* Professional Summary */}
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">Professional Summary</h3>
-        <p className="text-gray-700 leading-relaxed">{mockResumeData.summary}</p>
+        <p className="text-gray-700 leading-relaxed">{profile.summary}</p>
       </div>
 
       {/* Skills */}
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">Technical Skills</h3>
         <div className="flex flex-wrap gap-2">
-          {mockResumeData.skills.map((skill, index) => (
+          {profile.skills.map((skill, index) => (
             <Badge key={index} variant="secondary" className="bg-blue-50 text-blue-700">
               {skill}
             </Badge>
@@ -130,20 +67,18 @@ export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePrevie
       {/* Experience */}
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Professional Experience</h3>
-        {mockResumeData.experience.map((exp, index) => (
+        {profile.experience.map((exp, index) => (
           <div key={index} className="mb-4">
             <div className="flex justify-between items-start mb-2">
               <div>
                 <h4 className="font-semibold text-gray-900">{exp.title}</h4>
                 <p className="text-blue-600">{exp.company}</p>
               </div>
-              <span className="text-sm text-gray-500">{exp.period}</span>
+              <span className="text-sm text-gray-500">{exp.duration}</span>
             </div>
-            <ul className="list-disc list-inside space-y-1 text-gray-700 ml-4">
-              {exp.achievements.map((achievement, i) => (
-                <li key={i}>{achievement}</li>
-              ))}
-            </ul>
+            <div className="text-gray-700 ml-4">
+              <p>{exp.description}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -151,13 +86,15 @@ export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePrevie
       {/* Education */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-3">Education</h3>
-        <div className="flex justify-between">
-          <div>
-            <h4 className="font-semibold text-gray-900">{mockResumeData.education.degree}</h4>
-            <p className="text-gray-600">{mockResumeData.education.school}</p>
+        {profile.education.map((edu, index) => (
+          <div key={index} className="flex justify-between mb-2">
+            <div>
+              <h4 className="font-semibold text-gray-900">{edu.degree} in {edu.field}</h4>
+              <p className="text-gray-600">{edu.school}</p>
+            </div>
+            <span className="text-sm text-gray-500">{edu.duration}</span>
           </div>
-          <span className="text-sm text-gray-500">{mockResumeData.education.year}</span>
-        </div>
+        ))}
       </div>
     </div>
   )
@@ -236,25 +173,65 @@ export function ResumePreview({ onBack, onNext, selectedTemplate }: ResumePrevie
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {mockTailoringInsights.map((section, index) => (
-                  <div key={index}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="text-primary">{section.icon}</div>
-                      <h4 className="font-semibold text-sm">{section.category}</h4>
-                    </div>
-                    <ul className="space-y-2">
-                      {section.insights.map((insight, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
-                          <span>{insight}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {index < mockTailoringInsights.length - 1 && (
-                      <Separator className="mt-4" />
-                    )}
+                {/* Skills Match */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Target className="w-4 h-4 text-primary" />
+                    <h4 className="font-semibold text-sm">Skills Match</h4>
                   </div>
-                ))}
+                  <ul className="space-y-2">
+                    {insights.skillsMatch.slice(0, 3).map((skill, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                        <span>{skill.explanation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Separator className="mt-4" />
+                </div>
+
+                {/* Experience Alignment */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="w-4 h-4 text-primary" />
+                    <h4 className="font-semibold text-sm">Experience Alignment</h4>
+                  </div>
+                  <ul className="space-y-2">
+                    {insights.experienceAlignment.slice(0, 3).map((exp, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                        <span>{exp.explanation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Separator className="mt-4" />
+                </div>
+
+                {/* Keywords Optimization */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <h4 className="font-semibold text-sm">Keywords Optimization</h4>
+                  </div>
+                  <ul className="space-y-2">
+                    {insights.keywordOptimization.slice(0, 3).map((keyword, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
+                        <span>Optimized "{keyword.original}" to "{keyword.optimized}" for better ATS matching</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.summaryChanges && (
+                    <>
+                      <Separator className="mt-4" />
+                      <div className="mt-4">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Summary Enhancement:</span> {insights.summaryChanges.explanation}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

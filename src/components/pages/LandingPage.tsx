@@ -173,7 +173,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       <section id="features" className="py-20">
         <div className="container">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Why Choose Instant Resume Tailor?</h2>
+            <h2 className="text-3xl font-bold mb-4">Why Choose Insta Resume?</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Powered by cutting-edge AI to give you the competitive edge
             </p>

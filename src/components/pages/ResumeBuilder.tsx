@@ -1,16 +1,16 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, Linkedin, Briefcase, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Linkedin, Briefcase, Loader2, AlertCircle, ExternalLink, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
+import { parsingService, type LinkedInProfile, type JobPosting, type TailoringInsights } from '@/services/parsing'
 
 interface ResumeBuilderProps {
   onBack: () => void
-  onNext: () => void
+  onNext: (data: { profile: LinkedInProfile; job: JobPosting; insights: TailoringInsights }) => void
 }
 
 export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
@@ -18,21 +18,22 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
   const [jobUrl, setJobUrl] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [errors, setErrors] = useState<{ linkedin?: string; job?: string }>({})
+  const [currentStep, setCurrentStep] = useState('')
+  const [errors, setErrors] = useState<{ linkedin?: string; job?: string; general?: string }>({})
 
   const validateUrls = () => {
     const newErrors: { linkedin?: string; job?: string } = {}
     
     if (!linkedinUrl.trim()) {
       newErrors.linkedin = 'LinkedIn URL is required'
-    } else if (!linkedinUrl.includes('linkedin.com')) {
-      newErrors.linkedin = 'Please enter a valid LinkedIn URL'
+    } else if (!parsingService.validateLinkedInUrl(linkedinUrl)) {
+      newErrors.linkedin = 'Please enter a valid LinkedIn profile URL (e.g., https://linkedin.com/in/your-name)'
     }
     
     if (!jobUrl.trim()) {
       newErrors.job = 'Job posting URL is required'
-    } else if (!jobUrl.startsWith('http')) {
-      newErrors.job = 'Please enter a valid URL'
+    } else if (!parsingService.validateJobUrl(jobUrl)) {
+      newErrors.job = 'Please enter a valid job posting URL'
     }
     
     setErrors(newErrors)
@@ -44,23 +45,50 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
     
     setIsProcessing(true)
     setProgress(0)
+    setErrors({})
     
-    // Simulate AI processing with progress updates
-    const steps = [
-      { message: 'Analyzing LinkedIn profile...', progress: 20 },
-      { message: 'Parsing job requirements...', progress: 40 },
-      { message: 'Matching skills and experience...', progress: 60 },
-      { message: 'Generating tailored content...', progress: 80 },
-      { message: 'Finalizing resume...', progress: 100 }
-    ]
-    
-    for (const step of steps) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      setProgress(step.progress)
+    try {
+      // Step 1: Parse LinkedIn Profile
+      setCurrentStep('Analyzing LinkedIn profile...')
+      setProgress(20)
+      const profile = await parsingService.parseLinkedInProfile(linkedinUrl)
+      
+      // Step 2: Parse Job Posting
+      setCurrentStep('Parsing job requirements...')
+      setProgress(40)
+      const job = await parsingService.parseJobPosting(jobUrl)
+      
+      // Step 3: Generate Tailored Resume
+      setCurrentStep('Matching skills and experience...')
+      setProgress(60)
+      
+      setCurrentStep('Generating tailored content...')
+      setProgress(80)
+      const { tailoredProfile, insights } = await parsingService.generateTailoredResume(profile, job)
+      
+      // Step 4: Finalize
+      setCurrentStep('Finalizing resume...')
+      setProgress(100)
+      
+      // Small delay for UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      setIsProcessing(false)
+      onNext({ 
+        profile: tailoredProfile, 
+        job, 
+        insights 
+      })
+      
+    } catch (error) {
+      console.error('Error generating resume:', error)
+      setIsProcessing(false)
+      setProgress(0)
+      setCurrentStep('')
+      setErrors({ 
+        general: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.' 
+      })
     }
-    
-    setIsProcessing(false)
-    onNext()
   }
 
   return (
@@ -136,12 +164,19 @@ export function ResumeBuilder({ onBack, onNext }: ResumeBuilderProps) {
                 )}
               </div>
 
+              {errors.general && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errors.general}</AlertDescription>
+                </Alert>
+              )}
+
               {isProcessing && (
                 <div className="space-y-4">
                   <Progress value={progress} className="h-3" />
                   <div className="flex items-center justify-center text-sm text-muted-foreground">
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing your information...
+                    {currentStep || 'Processing your information...'}
                   </div>
                 </div>
               )}
