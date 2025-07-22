@@ -135,24 +135,31 @@ export class ParsingService {
       // Use AI to extract structured data from the scraped content
       const { object: profile } = await blink.ai.generateObject({
         prompt: `
-          Analyze this LinkedIn profile content and extract comprehensive professional information.
-          Focus on extracting detailed work experience, skills, education, and achievements.
+          Extract ONLY the factual information that is explicitly stated in this LinkedIn profile content.
+          DO NOT infer, assume, or add any information that is not clearly present.
+          
+          CRITICAL RULES:
+          1. Extract ONLY what is explicitly written in the profile
+          2. Do NOT make assumptions about skills or experience not mentioned
+          3. Do NOT add generic or placeholder content
+          4. If information is missing, leave those fields empty or minimal
+          5. Preserve the exact job titles, company names, and descriptions as written
           
           LinkedIn Content:
           ${markdown}
           
-          Extract all available information including:
-          - Personal details (name, headline, location, summary)
-          - Work experience with detailed descriptions and quantified achievements
-          - Education with degrees, schools, and academic achievements
-          - Skills (both listed and mentioned in descriptions)
-          - Certifications and licenses
-          - Projects and portfolio items
-          - Volunteer work and community involvement
-          - Awards and recognitions
-          - Languages spoken
+          Extract the following information ONLY if it's clearly stated:
+          - Personal details (name, headline, location, summary/about section)
+          - Work experience (exact titles, companies, dates, descriptions as written)
+          - Education (schools, degrees, fields of study, dates)
+          - Skills (only those explicitly listed or clearly mentioned)
+          - Certifications (only if specifically listed)
+          - Projects (only if there's a dedicated projects section)
+          - Volunteer work (only if explicitly mentioned)
+          - Awards (only if specifically listed)
+          - Languages (only if there's a languages section)
           
-          Be thorough and extract as much relevant professional information as possible.
+          Be accurate and factual. Do not embellish or add content that isn't there.
         `,
         schema: {
           type: 'object',
@@ -262,6 +269,16 @@ export class ParsingService {
 
       // Ensure required arrays are not empty
       const processedProfile = profile as LinkedInProfile
+      
+      // Debug logging
+      console.log('Parsed LinkedIn Profile:', {
+        name: processedProfile.name,
+        headline: processedProfile.headline,
+        experienceCount: processedProfile.experience?.length || 0,
+        firstJobTitle: processedProfile.experience?.[0]?.title,
+        skillsCount: processedProfile.skills?.length || 0
+      })
+      
       if (!processedProfile.experience || processedProfile.experience.length === 0) {
         processedProfile.experience = [{
           title: 'Professional Experience',
@@ -401,30 +418,40 @@ export class ParsingService {
       // Step 1: Generate the tailored profile first
       const { object: tailoredProfile } = await blink.ai.generateObject({
         prompt: `
-          You are an expert resume writer. Analyze the LinkedIn profile and job posting to create a perfectly tailored resume.
+          You are an expert resume writer. Your job is to optimize the candidate's EXISTING experience and background for a specific job posting.
           
-          LinkedIn Profile:
+          CRITICAL RULES:
+          1. NEVER change the candidate's actual job titles, companies, or core background
+          2. NEVER invent experience the candidate doesn't have
+          3. NEVER change their industry or field unless it's clearly transferable
+          4. ONLY optimize descriptions, keywords, and emphasis to highlight relevant aspects
+          5. The candidate's fundamental career path and expertise MUST remain accurate
+          
+          LinkedIn Profile (ACTUAL CANDIDATE DATA - DO NOT CHANGE CORE FACTS):
           ${JSON.stringify(profile, null, 2)}
           
-          Job Posting:
+          Job Posting (TARGET ROLE):
           ${JSON.stringify(job, null, 2)}
           
-          Your task:
-          1. Tailor the profile to match the job requirements while staying truthful
-          2. Optimize keywords for ATS systems
-          3. Rewrite job descriptions to highlight relevant achievements
-          4. Adjust the professional summary to align with the role
-          5. Prioritize and enhance relevant skills
+          Your task is to OPTIMIZE, not FABRICATE:
+          1. Keep all job titles, companies, dates, and education exactly as they are
+          2. Rewrite job descriptions to emphasize aspects relevant to the target role
+          3. Adjust the professional summary to highlight relevant strengths from their ACTUAL background
+          4. Prioritize skills they actually have that match the job requirements
+          5. Use keywords from the job posting naturally in descriptions of their REAL experience
+          
+          Example: If they're a salesperson applying for a sales role, emphasize their sales achievements.
+          If they're a salesperson applying for a marketing role, emphasize the marketing aspects of their sales work.
+          But NEVER make a salesperson into a software engineer!
           
           Focus on:
-          - Matching job keywords naturally in descriptions
-          - Quantifying achievements where possible
-          - Highlighting transferable skills
-          - Using industry-specific terminology from the job posting
-          - Ensuring ATS compatibility
-          - Maintaining authenticity while optimizing for the role
+          - Highlighting transferable skills from their actual experience
+          - Using job posting keywords to describe their real accomplishments
+          - Quantifying their actual achievements where possible
+          - Emphasizing relevant aspects of their true background
+          - Maintaining complete factual accuracy about their career history
           
-          Return the complete tailored profile with all sections optimized for this specific job.
+          Return the optimized profile that stays true to who they are while positioning them for the target role.
         `,
         schema: {
           type: 'object',
@@ -531,6 +558,46 @@ export class ParsingService {
           required: ['name', 'headline', 'location', 'summary', 'experience', 'education', 'skills']
         }
       })
+
+      // Validation: Ensure the tailored profile maintains the original person's background
+      const originalJobTitles = profile.experience.map(exp => exp.title.toLowerCase())
+      const tailoredJobTitles = (tailoredProfile as LinkedInProfile).experience.map(exp => exp.title.toLowerCase())
+      
+      // Check if the AI completely changed the person's background
+      const hasSignificantTitleChanges = originalJobTitles.some((originalTitle, index) => {
+        const tailoredTitle = tailoredJobTitles[index]
+        if (!tailoredTitle) return false
+        
+        // Allow minor wording changes but not complete career changes
+        const originalWords = originalTitle.split(' ')
+        const tailoredWords = tailoredTitle.split(' ')
+        const commonWords = originalWords.filter(word => 
+          tailoredWords.some(tWord => tWord.includes(word) || word.includes(tWord))
+        )
+        
+        // If less than 30% of words are similar, it's likely a hallucination
+        return commonWords.length < originalWords.length * 0.3
+      })
+      
+      if (hasSignificantTitleChanges) {
+        console.warn('AI may have hallucinated job titles, using original profile with minimal changes')
+        console.log('Original titles:', originalJobTitles)
+        console.log('Tailored titles:', tailoredJobTitles)
+        
+        // Use original profile with just summary and description optimizations
+        const safeProfile = {
+          ...profile,
+          summary: (tailoredProfile as LinkedInProfile).summary || profile.summary,
+          experience: profile.experience.map((exp, index) => ({
+            ...exp,
+            // Keep original title and company, only optimize description
+            description: (tailoredProfile as LinkedInProfile).experience[index]?.description || exp.description
+          }))
+        }
+        tailoredProfile = safeProfile as any
+      } else {
+        console.log('Job titles validation passed - no significant changes detected')
+      }
 
       // Step 2: Generate insights separately (simplified)
       const { object: insights } = await blink.ai.generateObject({
